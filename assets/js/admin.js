@@ -76,6 +76,20 @@
                     useSelect = true;
                     loadOptions('attributes');
                     break;
+                case 'stock_status':
+                    description = 'Select one or more stock statuses';
+                    $filterValueRow.show();
+                    $filterValueSelectWrapper.show();
+                    useSelect = true;
+                    loadStockStatusOptions();
+                    break;
+                case 'product_type':
+                    description = 'Select one or more product types';
+                    $filterValueRow.show();
+                    $filterValueSelectWrapper.show();
+                    useSelect = true;
+                    loadProductTypeOptions();
+                    break;
                 default:
                     $filterValueRow.show();
                     $filterValue.show();
@@ -120,7 +134,28 @@
             });
         }
 
-        // Populate the select dropdown with options
+        // Load stock status options (client-side)
+        function loadStockStatusOptions() {
+            const options = [
+                { value: 'instock', label: 'In Stock', count: 0 },
+                { value: 'outofstock', label: 'Out of Stock', count: 0 },
+                { value: 'onbackorder', label: 'On Backorder', count: 0 }
+            ];
+            populateSelectSimple(options);
+        }
+
+        // Load product type options (client-side)
+        function loadProductTypeOptions() {
+            const options = [
+                { value: 'simple', label: 'Simple', count: 0 },
+                { value: 'variable', label: 'Variable', count: 0 },
+                { value: 'grouped', label: 'Grouped', count: 0 },
+                { value: 'external', label: 'External/Affiliate', count: 0 }
+            ];
+            populateSelectSimple(options);
+        }
+
+        // Populate the select dropdown with options (with counts)
         function populateSelect(options) {
             $filterValueSelect.empty();
 
@@ -139,6 +174,24 @@
             });
         }
 
+        // Populate the select dropdown with options (without counts)
+        function populateSelectSimple(options) {
+            $filterValueSelect.empty();
+
+            if (options.length === 0) {
+                $filterValueSelect.html('<option disabled>No options available</option>');
+                return;
+            }
+
+            $.each(options, function(index, option) {
+                $filterValueSelect.append(
+                    $('<option></option>')
+                        .attr('value', option.value)
+                        .text(option.label)
+                );
+            });
+        }
+
         // Handle form submission
         $form.on('submit', function(e) {
             e.preventDefault();
@@ -146,9 +199,12 @@
             const filterType = $filterType.val();
             let filterValue;
             const includeVariations = $('#include_variations').is(':checked') ? 'yes' : 'no';
+            const exportFormat = $('#export_format').val();
+            const delimiter = $('#delimiter').val();
 
             // Get value based on input type
-            if (filterType === 'category' || filterType === 'tag' || filterType === 'attribute') {
+            if (filterType === 'category' || filterType === 'tag' || filterType === 'attribute' ||
+                filterType === 'stock_status' || filterType === 'product_type') {
                 filterValue = $filterValueSelect.val(); // Array of selected values
             } else {
                 filterValue = $filterValue.val().trim();
@@ -173,7 +229,9 @@
                     nonce: speAjax.nonce,
                     filter_type: filterType,
                     filter_value: filterValue,
-                    include_variations: includeVariations
+                    include_variations: includeVariations,
+                    export_format: exportFormat,
+                    delimiter: delimiter
                 },
                 success: function(response) {
                     if (response.success) {

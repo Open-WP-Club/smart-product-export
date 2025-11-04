@@ -123,32 +123,58 @@ class Smart_Product_Export {
      * AJAX handler for exporting SKUs
      */
     public function ajax_export_skus() {
+        // Enhanced security checks
         check_ajax_referer('spe_export_nonce', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => 'Unauthorized'));
+            wp_send_json_error(array('message' => __('Unauthorized access.', 'smart-product-export')));
             return;
         }
 
-        $filter_type = isset($_POST['filter_type']) ? sanitize_text_field($_POST['filter_type']) : '';
+        // Validate and sanitize filter type
+        $allowed_filter_types = array('all', 'sku', 'id', 'category', 'tag', 'attribute', 'stock_status', 'product_type');
+        $filter_type = isset($_POST['filter_type']) ? sanitize_text_field(wp_unslash($_POST['filter_type'])) : 'all';
+
+        if (!in_array($filter_type, $allowed_filter_types, true)) {
+            wp_send_json_error(array('message' => __('Invalid filter type.', 'smart-product-export')));
+            return;
+        }
+
+        // Sanitize filter value
         $filter_value = isset($_POST['filter_value']) ? $_POST['filter_value'] : '';
+        if (is_array($filter_value)) {
+            $filter_value = array_map('sanitize_text_field', array_map('wp_unslash', $filter_value));
+        } else {
+            $filter_value = sanitize_text_field(wp_unslash($filter_value));
+        }
+
+        // Validate and sanitize additional options
         $include_variations = isset($_POST['include_variations']) && $_POST['include_variations'] === 'yes';
 
-        // Handle array values for multi-select
-        if (is_array($filter_value)) {
-            $filter_value = array_map('sanitize_text_field', $filter_value);
-        } else {
-            $filter_value = sanitize_text_field($filter_value);
+        // New export options
+        $export_format = isset($_POST['export_format']) ? sanitize_text_field(wp_unslash($_POST['export_format'])) : 'sku';
+        $allowed_formats = array('sku', 'sku_title', 'sku_price', 'sku_stock', 'sku_all');
+        if (!in_array($export_format, $allowed_formats, true)) {
+            $export_format = 'sku';
+        }
+
+        $delimiter = isset($_POST['delimiter']) ? sanitize_text_field(wp_unslash($_POST['delimiter'])) : 'comma';
+        $allowed_delimiters = array('comma', 'semicolon', 'tab', 'newline');
+        if (!in_array($delimiter, $allowed_delimiters, true)) {
+            $delimiter = 'comma';
         }
 
         $result = $this->get_filtered_skus($filter_type, $filter_value, $include_variations);
-        $skus = $result['skus'];
+        $products = $result['products'];
         $products_found = $result['products_found'];
 
-        if (empty($skus)) {
-            $message = 'No products found matching the criteria.';
+        if (empty($products)) {
+            $message = __('No products found matching the criteria.', 'smart-product-export');
             if ($products_found > 0) {
-                $message = sprintf('%d product(s) found, but none have SKUs assigned. Please add SKUs to your products in WooCommerce.', $products_found);
+                $message = sprintf(
+                    __('%d product(s) found, but none have SKUs assigned. Please add SKUs to your products in WooCommerce.', 'smart-product-export'),
+                    $products_found
+                );
             }
             wp_send_json_success(array(
                 'skus' => '',
@@ -156,35 +182,52 @@ class Smart_Product_Export {
                 'message' => $message
             ));
         } else {
+            $formatted_output = $this->format_export_data($products, $export_format, $delimiter);
             wp_send_json_success(array(
-                'skus' => implode(', ', $skus),
-                'count' => count($skus),
-                'message' => sprintf('%d SKU(s) found.', count($skus))
+                'skus' => $formatted_output,
+                'count' => count($products),
+                'message' => sprintf(
+                    __('%d product(s) exported.', 'smart-product-export'),
+                    count($products)
+                )
             ));
         }
     }
 
     /**
-     * Get filtered SKUs based on criteria
+     * Get filtered products based on criteria with enhanced performance
      */
     private function get_filtered_skus($filter_type, $filter_value, $include_variations = false) {
+        // Check cache first for taxonomy queries
+        $cache_key = 'spe_products_' . md5(serialize(array($filter_type, $filter_value, $include_variations)));
+        $cached_result = get_transient($cache_key);
+
+        if (false !== $cached_result && is_array($cached_result)) {
+            return $cached_result;
+        }
+
         $args = array(
             'post_type' => 'product',
             'posts_per_page' => -1,
             'post_status' => 'publish',
-            'fields' => 'ids'
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false
         );
 
         // Apply filters based on type
         switch ($filter_type) {
             case 'sku':
-                $args['meta_query'] = array(
-                    array(
-                        'key' => '_sku',
-                        'value' => $filter_value,
-                        'compare' => 'LIKE'
-                    )
-                );
+                if (!empty($filter_value)) {
+                    $args['meta_query'] = array(
+                        array(
+                            'key' => '_sku',
+                            'value' => sanitize_text_field($filter_value),
+                            'compare' => 'LIKE'
+                        )
+                    );
+                }
                 break;
 
             case 'id':
@@ -195,15 +238,14 @@ class Smart_Product_Export {
                 break;
 
             case 'category':
-                // Handle multiple categories (OR logic)
                 $categories = is_array($filter_value) ? $filter_value : array($filter_value);
-                $categories = array_filter($categories);
+                $categories = array_filter(array_map('intval', $categories));
                 if (!empty($categories)) {
                     $args['tax_query'] = array(
                         array(
                             'taxonomy' => 'product_cat',
                             'field' => 'term_id',
-                            'terms' => array_map('intval', $categories),
+                            'terms' => $categories,
                             'operator' => 'IN'
                         )
                     );
@@ -211,15 +253,14 @@ class Smart_Product_Export {
                 break;
 
             case 'tag':
-                // Handle multiple tags (OR logic)
                 $tags = is_array($filter_value) ? $filter_value : array($filter_value);
-                $tags = array_filter($tags);
+                $tags = array_filter(array_map('intval', $tags));
                 if (!empty($tags)) {
                     $args['tax_query'] = array(
                         array(
                             'taxonomy' => 'product_tag',
                             'field' => 'term_id',
-                            'terms' => array_map('intval', $tags),
+                            'terms' => $tags,
                             'operator' => 'IN'
                         )
                     );
@@ -227,13 +268,10 @@ class Smart_Product_Export {
                 break;
 
             case 'attribute':
-                // Handle multiple attributes (OR logic)
-                // Format: taxonomy_slug|term_slug
                 $attributes = is_array($filter_value) ? $filter_value : array($filter_value);
                 $attributes = array_filter($attributes);
 
                 if (!empty($attributes)) {
-                    // Group by taxonomy
                     $grouped_attrs = array();
                     foreach ($attributes as $attr) {
                         $parts = explode('|', $attr);
@@ -247,7 +285,6 @@ class Smart_Product_Export {
                         }
                     }
 
-                    // Build tax query with OR relation between different taxonomies
                     if (!empty($grouped_attrs)) {
                         $tax_query = array('relation' => 'OR');
                         foreach ($grouped_attrs as $taxonomy => $terms) {
@@ -263,57 +300,170 @@ class Smart_Product_Export {
                 }
                 break;
 
+            case 'stock_status':
+                $allowed_statuses = array('instock', 'outofstock', 'onbackorder');
+                $statuses = is_array($filter_value) ? $filter_value : array($filter_value);
+                $statuses = array_filter($statuses);
+                if (!empty($statuses)) {
+                    $valid_statuses = array_intersect($statuses, $allowed_statuses);
+                    if (!empty($valid_statuses)) {
+                        $args['meta_query'] = array(
+                            array(
+                                'key' => '_stock_status',
+                                'value' => $valid_statuses,
+                                'compare' => 'IN'
+                            )
+                        );
+                    }
+                }
+                break;
+
+            case 'product_type':
+                $allowed_types = array('simple', 'variable', 'grouped', 'external');
+                $types = is_array($filter_value) ? $filter_value : array($filter_value);
+                $types = array_filter($types);
+                if (!empty($types)) {
+                    $valid_types = array_intersect($types, $allowed_types);
+                    if (!empty($valid_types)) {
+                        $args['tax_query'] = array(
+                            array(
+                                'taxonomy' => 'product_type',
+                                'field' => 'slug',
+                                'terms' => $valid_types,
+                                'operator' => 'IN'
+                            )
+                        );
+                    }
+                }
+                break;
+
             case 'all':
-                // No additional filters - get all products
+                // No additional filters
                 break;
         }
 
         $query = new WP_Query($args);
         $product_ids = $query->posts;
 
-        $skus = array();
+        $products = array();
 
         foreach ($product_ids as $product_id) {
             $product = wc_get_product($product_id);
 
-            if (!$product) {
+            if (!$product || !$product->get_sku()) {
                 continue;
             }
 
-            // Get parent product SKU
-            if ($product->get_sku()) {
-                $skus[] = $product->get_sku();
-            }
+            $products[] = array(
+                'id' => $product_id,
+                'sku' => $product->get_sku(),
+                'name' => $product->get_name(),
+                'price' => $product->get_price(),
+                'stock' => $product->get_stock_quantity(),
+                'stock_status' => $product->get_stock_status(),
+                'type' => $product->get_type()
+            );
 
             // Include variations if requested
             if ($include_variations && $product->is_type('variable')) {
-                $variations = $product->get_available_variations();
-                foreach ($variations as $variation) {
-                    $variation_obj = wc_get_product($variation['variation_id']);
+                $variation_ids = $product->get_children();
+                foreach ($variation_ids as $variation_id) {
+                    $variation_obj = wc_get_product($variation_id);
                     if ($variation_obj && $variation_obj->get_sku()) {
-                        $skus[] = $variation_obj->get_sku();
+                        $products[] = array(
+                            'id' => $variation_id,
+                            'sku' => $variation_obj->get_sku(),
+                            'name' => $variation_obj->get_name(),
+                            'price' => $variation_obj->get_price(),
+                            'stock' => $variation_obj->get_stock_quantity(),
+                            'stock_status' => $variation_obj->get_stock_status(),
+                            'type' => 'variation'
+                        );
                     }
                 }
             }
         }
 
-        // Remove duplicates and empty values
-        $skus = array_unique(array_filter($skus));
-
-        return array(
-            'skus' => $skus,
+        $result = array(
+            'products' => $products,
             'products_found' => count($product_ids)
         );
+
+        // Cache result for 5 minutes
+        set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
+
+        return $result;
     }
 
     /**
-     * AJAX handler for getting categories
+     * Format export data based on format and delimiter
+     */
+    private function format_export_data($products, $format, $delimiter) {
+        $delimiter_map = array(
+            'comma' => ', ',
+            'semicolon' => '; ',
+            'tab' => "\t",
+            'newline' => "\n"
+        );
+
+        $sep = isset($delimiter_map[$delimiter]) ? $delimiter_map[$delimiter] : ', ';
+        $output = array();
+
+        foreach ($products as $product) {
+            switch ($format) {
+                case 'sku_title':
+                    $output[] = $product['sku'] . ' - ' . $product['name'];
+                    break;
+
+                case 'sku_price':
+                    $price = !empty($product['price']) ? wc_price($product['price']) : __('N/A', 'smart-product-export');
+                    $output[] = $product['sku'] . ' - ' . wp_strip_all_tags($price);
+                    break;
+
+                case 'sku_stock':
+                    $stock = $product['stock'] !== null ? $product['stock'] : $product['stock_status'];
+                    $output[] = $product['sku'] . ' - ' . $stock;
+                    break;
+
+                case 'sku_all':
+                    $price = !empty($product['price']) ? wc_price($product['price']) : __('N/A', 'smart-product-export');
+                    $stock = $product['stock'] !== null ? $product['stock'] : $product['stock_status'];
+                    $output[] = sprintf(
+                        '%s | %s | %s | %s',
+                        $product['sku'],
+                        $product['name'],
+                        wp_strip_all_tags($price),
+                        $stock
+                    );
+                    break;
+
+                case 'sku':
+                default:
+                    $output[] = $product['sku'];
+                    break;
+            }
+        }
+
+        return implode($sep, $output);
+    }
+
+    /**
+     * AJAX handler for getting categories with caching
      */
     public function ajax_get_categories() {
         check_ajax_referer('spe_export_nonce', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => 'Unauthorized'));
+            wp_send_json_error(array('message' => __('Unauthorized access.', 'smart-product-export')));
+            return;
+        }
+
+        // Check cache first
+        $cache_key = 'spe_categories';
+        $cached_options = get_transient($cache_key);
+
+        if (false !== $cached_options) {
+            wp_send_json_success(array('options' => $cached_options));
             return;
         }
 
@@ -325,7 +475,7 @@ class Smart_Product_Export {
         ));
 
         if (is_wp_error($categories)) {
-            wp_send_json_error(array('message' => 'Failed to load categories'));
+            wp_send_json_error(array('message' => __('Failed to load categories.', 'smart-product-export')));
             return;
         }
 
@@ -338,17 +488,29 @@ class Smart_Product_Export {
             );
         }
 
+        // Cache for 10 minutes
+        set_transient($cache_key, $options, 10 * MINUTE_IN_SECONDS);
+
         wp_send_json_success(array('options' => $options));
     }
 
     /**
-     * AJAX handler for getting tags
+     * AJAX handler for getting tags with caching
      */
     public function ajax_get_tags() {
         check_ajax_referer('spe_export_nonce', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => 'Unauthorized'));
+            wp_send_json_error(array('message' => __('Unauthorized access.', 'smart-product-export')));
+            return;
+        }
+
+        // Check cache first
+        $cache_key = 'spe_tags';
+        $cached_options = get_transient($cache_key);
+
+        if (false !== $cached_options) {
+            wp_send_json_success(array('options' => $cached_options));
             return;
         }
 
@@ -360,7 +522,7 @@ class Smart_Product_Export {
         ));
 
         if (is_wp_error($tags)) {
-            wp_send_json_error(array('message' => 'Failed to load tags'));
+            wp_send_json_error(array('message' => __('Failed to load tags.', 'smart-product-export')));
             return;
         }
 
@@ -373,17 +535,29 @@ class Smart_Product_Export {
             );
         }
 
+        // Cache for 10 minutes
+        set_transient($cache_key, $options, 10 * MINUTE_IN_SECONDS);
+
         wp_send_json_success(array('options' => $options));
     }
 
     /**
-     * AJAX handler for getting product attributes
+     * AJAX handler for getting product attributes with caching
      */
     public function ajax_get_attributes() {
         check_ajax_referer('spe_export_nonce', 'nonce');
 
         if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => 'Unauthorized'));
+            wp_send_json_error(array('message' => __('Unauthorized access.', 'smart-product-export')));
+            return;
+        }
+
+        // Check cache first
+        $cache_key = 'spe_attributes';
+        $cached_options = get_transient($cache_key);
+
+        if (false !== $cached_options) {
+            wp_send_json_success(array('options' => $cached_options));
             return;
         }
 
@@ -412,6 +586,9 @@ class Smart_Product_Export {
                 }
             }
         }
+
+        // Cache for 10 minutes
+        set_transient($cache_key, $options, 10 * MINUTE_IN_SECONDS);
 
         wp_send_json_success(array('options' => $options));
     }

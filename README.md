@@ -1,23 +1,47 @@
-# Smart Product Export
+# Smart Product Export for WooCommerce
 
-A WordPress plugin that allows you to export WooCommerce product SKUs based on various filter criteria, making inventory management and bulk operations simple and efficient.
+A powerful WordPress plugin that enables flexible export of WooCommerce product data with advanced filtering options.
 
 ## Features
 
-- **Multiple Filter Options**: Export by category, tag, attribute, SKU, product ID, or all products
-- **Multi-Select Support**: Select multiple categories, tags, or attributes at once (OR logic)
-- **Dynamic Dropdowns**: User-friendly interface with automatically populated filter options
-- **Variation Support**: Option to include product variation SKUs in exports
-- **One-Click Copy**: Copy results to clipboard with a single click
-- **Real-time Results**: AJAX-powered instant results without page reload
-- **Comma-Separated Output**: Export format ready for spreadsheets and bulk operations
-- **WooCommerce Integration**: Integrated directly into WooCommerce admin menu
+### Filter Options
+- **All Products** - Export entire product catalog
+- **By SKU** - Search with partial SKU matching
+- **By Product ID(s)** - Export specific products by ID
+- **By Category** - Multiple category selection with OR logic
+- **By Tag** - Multiple tag selection with OR logic
+- **By Attribute** - Filter by any product attribute
+- **By Stock Status** - Filter by In Stock, Out of Stock, or On Backorder
+- **By Product Type** - Filter by Simple, Variable, Grouped, or External products
+
+### Export Formats
+- SKU only
+- SKU + Product Title
+- SKU + Price
+- SKU + Stock Level
+- SKU + Title + Price + Stock (comprehensive export)
+
+### Delimiter Options
+- Comma (CSV-friendly)
+- Semicolon (European CSV format)
+- Tab (database-friendly)
+- New Line (list format)
+
+### Advanced Features
+- ✅ Product variation support
+- ✅ Performance optimized with caching (5-10 minute cache lifetime)
+- ✅ HPOS (High-Performance Order Storage) compatible
+- ✅ WCAG 2.1 accessibility compliant
+- ✅ Enhanced security (nonce verification, input validation, sanitization)
+- ✅ Responsive design
+- ✅ Real-time AJAX processing
+- ✅ Copy to clipboard functionality
 
 ## Requirements
 
-- WordPress 5.8+
-- WooCommerce 5.0+
-- PHP 7.4+
+- WordPress 5.8 or higher
+- WooCommerce 5.0 or higher
+- PHP 7.4 or higher
 
 ## Installation
 
@@ -27,63 +51,74 @@ A WordPress plugin that allows you to export WooCommerce product SKUs based on v
 
 ## Usage
 
-### Exporting Products
-
+### Basic Export
 1. Navigate to **WooCommerce > Smart Product Exporter**
-2. Select your filter type from the dropdown
-3. Choose one or more filter values (for categories, tags, or attributes)
-4. Optionally check "Include product variations"
-5. Click **Export SKUs**
-6. Copy the comma-separated results to your clipboard
+2. Select a filter type from the dropdown
+3. Enter or select your filter criteria
+4. Choose export format and delimiter
+5. Click "Export Products"
+6. Copy the results to clipboard
 
-### Filter Types
+### Advanced Filtering
 
-**All Products:** Export all product SKUs from your store
-
-**By SKU:** Search for products containing specific SKU text (partial match)
-
-**By Product ID:** Enter one or more product IDs separated by commas
-
-**By Category:** Select one or more product categories from the dropdown
-
-**By Tag:** Select one or more product tags from the dropdown
-
-**By Attribute:** Select one or more attribute values (e.g., "Color: Blue", "Size: Large")
-
-### Multi-Select Filters
-
-For categories, tags, and attributes:
-- Hold **Ctrl** (Windows/Linux) or **Cmd** (Mac) to select multiple items
-- Products matching **any** selected filter will be included (OR logic)
-- The dropdown shows the number of products in each category/tag
-
-### Output Format
-
-Results are displayed as comma-separated SKUs:
+#### Multiple Categories
 ```
-SKU-001, SKU-002, SKU-003, SKU-004, SKU-005
+Filter Type: By Category
+Select: Electronics, Clothing, Books
+Result: Products in ANY of these categories
 ```
 
-Use the **Copy to Clipboard** button to quickly copy results for use in spreadsheets, imports, or other systems.
+#### Partial SKU Match
+```
+Filter Type: By SKU
+Value: SHIRT
+Matches: SHIRT-001, TSHIRT-RED, SHIRT-BLUE-L, etc.
+```
 
-## Technical Features
+#### Multiple Product IDs
+```
+Filter Type: By Product ID(s)
+Value: 123, 456, 789
+Result: Only products with these specific IDs
+```
 
-- **AJAX-Powered Interface**: Fast, seamless filtering without page reloads
-- **Dynamic Option Loading**: Categories, tags, and attributes load on demand
-- **Smart Messaging**: Clear feedback when products are found but lack SKUs
-- **Security**: Nonce verification and capability checks on all AJAX requests
-- **Clean Code**: Well-documented, follows WordPress coding standards
+#### Stock Status Filtering
+```
+Filter Type: By Stock Status
+Select: In Stock, On Backorder
+Result: Products that are either in stock or on backorder
+```
 
-## Admin Features
+### Export Format Examples
 
-- **Integrated Menu**: Appears under WooCommerce menu for easy access
-- **Helpful Tooltips**: Context-sensitive descriptions for each filter type
-- **Quick Guide**: Built-in reference guide on the export page
-- **Product Count Display**: Shows total SKUs found in real-time
-- **Responsive Design**: Works on all screen sizes and devices
+**SKU Only:**
+```
+SHIRT-001, SHIRT-002, PANTS-001
+```
 
-## License & Author
+**SKU + Title:**
+```
+SHIRT-001 - Blue Cotton Shirt, SHIRT-002 - Red Polo Shirt
+```
 
-This plugin is licensed under GPL v2 or later.
+**SKU + All (using newline delimiter):**
+```
+SHIRT-001 | Blue Cotton Shirt | $29.99 | 45
+SHIRT-002 | Red Polo Shirt | $34.99 | 23
+```
 
-Developed by [OpenWPClub.com](https://openwpclub.com)
+## Performance Optimization
+
+### Caching Strategy
+- Taxonomy terms (categories, tags, attributes): 10-minute cache
+- Product query results: 5-minute cache
+- Cache keys: Automatically generated based on filter criteria
+
+## Support
+
+For support, bug reports, or feature requests:
+- Website: https://openwpclub.com/support/
+
+## License
+
+GPL v2 or later - https://www.gnu.org/licenses/gpl-2.0.html
