@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Smart Product Export
  * Description: Export WooCommerce product SKUs based on various filter criteria including categories, tags, attributes, and more
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: OpenWPClub.com
  * Author URI: https://openwpclub.com
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('SPE_VERSION', '1.0.0');
+define('SPE_VERSION', '1.1.0');
 define('SPE_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SPE_PLUGIN_URL', plugin_dir_url(__FILE__));
 
