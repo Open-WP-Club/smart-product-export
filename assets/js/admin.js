@@ -10,6 +10,8 @@
         const $form = $('#spe-export-form');
         const $filterType = $('#filter_type');
         const $filterValue = $('#filter_value');
+        const $filterValueSelect = $('#filter_value_select');
+        const $filterValueSelectWrapper = $('#filter_value_select_wrapper');
         const $filterValueRow = $('#filter_value_row');
         const $filterValueDesc = $('#filter_value_desc');
         const $exportBtn = $('#spe-export-btn');
@@ -31,6 +33,11 @@
         function updateFilterValueField(filterType) {
             let placeholder = '';
             let description = '';
+            let useSelect = false;
+
+            // Hide both inputs first
+            $filterValue.hide();
+            $filterValueSelectWrapper.hide();
 
             switch(filterType) {
                 case 'all':
@@ -40,33 +47,96 @@
                     placeholder = 'e.g., SHIRT';
                     description = 'Enter partial SKU to search for (e.g., "SHIRT" matches "SHIRT-001", "TSHIRT-RED")';
                     $filterValueRow.show();
+                    $filterValue.show();
                     break;
                 case 'id':
                     placeholder = 'e.g., 123, 456, 789';
                     description = 'Enter one or more product IDs separated by commas';
                     $filterValueRow.show();
+                    $filterValue.show();
                     break;
                 case 'category':
-                    placeholder = 'e.g., clothing';
-                    description = 'Enter the category slug';
+                    description = 'Select one or more categories';
                     $filterValueRow.show();
+                    $filterValueSelectWrapper.show();
+                    useSelect = true;
+                    loadOptions('categories');
                     break;
                 case 'tag':
-                    placeholder = 'e.g., sale';
-                    description = 'Enter the product tag slug';
+                    description = 'Select one or more tags';
                     $filterValueRow.show();
+                    $filterValueSelectWrapper.show();
+                    useSelect = true;
+                    loadOptions('tags');
                     break;
                 case 'attribute':
-                    placeholder = 'e.g., color:blue';
-                    description = 'Enter in format "attribute_name:value" (e.g., "color:blue", "size:large")';
+                    description = 'Select one or more attribute values';
                     $filterValueRow.show();
+                    $filterValueSelectWrapper.show();
+                    useSelect = true;
+                    loadOptions('attributes');
                     break;
                 default:
                     $filterValueRow.show();
+                    $filterValue.show();
             }
 
             $filterValue.attr('placeholder', placeholder);
             $filterValueDesc.text(description);
+        }
+
+        // Load options dynamically via AJAX
+        function loadOptions(type) {
+            // Show loading state
+            $filterValueSelect.html('<option disabled>Loading...</option>');
+            $filterValueSelectWrapper.addClass('spe-loading');
+
+            const actionMap = {
+                'categories': 'spe_get_categories',
+                'tags': 'spe_get_tags',
+                'attributes': 'spe_get_attributes'
+            };
+
+            $.ajax({
+                url: speAjax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: actionMap[type],
+                    nonce: speAjax.nonce
+                },
+                success: function(response) {
+                    if (response.success && response.data.options) {
+                        populateSelect(response.data.options);
+                    } else {
+                        $filterValueSelect.html('<option disabled>No options available</option>');
+                    }
+                },
+                error: function() {
+                    $filterValueSelect.html('<option disabled>Failed to load options</option>');
+                },
+                complete: function() {
+                    $filterValueSelectWrapper.removeClass('spe-loading');
+                }
+            });
+        }
+
+        // Populate the select dropdown with options
+        function populateSelect(options) {
+            $filterValueSelect.empty();
+
+            if (options.length === 0) {
+                $filterValueSelect.html('<option disabled>No options available</option>');
+                return;
+            }
+
+            $.each(options, function(index, option) {
+                const optionText = option.label + ' (' + option.count + ')';
+                $filterValueSelect.append(
+                    $('<option></option>')
+                        .attr('value', option.value)
+                        .text(optionText)
+                );
+            });
         }
 
         // Handle form submission
@@ -74,12 +144,19 @@
             e.preventDefault();
 
             const filterType = $filterType.val();
-            const filterValue = $filterValue.val().trim();
+            let filterValue;
             const includeVariations = $('#include_variations').is(':checked') ? 'yes' : 'no';
 
+            // Get value based on input type
+            if (filterType === 'category' || filterType === 'tag' || filterType === 'attribute') {
+                filterValue = $filterValueSelect.val(); // Array of selected values
+            } else {
+                filterValue = $filterValue.val().trim();
+            }
+
             // Validation
-            if (filterType !== 'all' && !filterValue) {
-                showMessage('Please enter a filter value or select "All Products".', 'error');
+            if (filterType !== 'all' && (!filterValue || (Array.isArray(filterValue) && filterValue.length === 0))) {
+                showMessage('Please select or enter a filter value, or select "All Products".', 'error');
                 return;
             }
 

@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 ?>
 
 <div class="wrap spe-wrap">
-    <h1><?php echo esc_html__('Smart Product Export - SKU Export Tool', 'smart-product-export'); ?></h1>
+    <h1><?php echo esc_html__('Smart Product Exporter', 'smart-product-export'); ?></h1>
 
     <div class="spe-container">
         <div class="spe-card">
@@ -33,8 +33,8 @@ if (!defined('ABSPATH')) {
                                     <option value="all"><?php echo esc_html__('All Products', 'smart-product-export'); ?></option>
                                     <option value="sku"><?php echo esc_html__('By SKU (partial match)', 'smart-product-export'); ?></option>
                                     <option value="id"><?php echo esc_html__('By Product ID(s)', 'smart-product-export'); ?></option>
-                                    <option value="category"><?php echo esc_html__('By Category Slug', 'smart-product-export'); ?></option>
-                                    <option value="tag"><?php echo esc_html__('By Tag Slug', 'smart-product-export'); ?></option>
+                                    <option value="category"><?php echo esc_html__('By Category', 'smart-product-export'); ?></option>
+                                    <option value="tag"><?php echo esc_html__('By Tag', 'smart-product-export'); ?></option>
                                     <option value="attribute"><?php echo esc_html__('By Attribute', 'smart-product-export'); ?></option>
                                 </select>
                                 <p class="description" id="filter_type_desc">
@@ -48,7 +48,19 @@ if (!defined('ABSPATH')) {
                                 <label for="filter_value"><?php echo esc_html__('Filter Value', 'smart-product-export'); ?></label>
                             </th>
                             <td>
-                                <input type="text" name="filter_value" id="filter_value" class="regular-text" placeholder="">
+                                <!-- Text input for SKU and ID -->
+                                <input type="text" name="filter_value" id="filter_value" class="regular-text" placeholder="" style="display: none;">
+
+                                <!-- Multi-select for categories, tags, and attributes -->
+                                <div id="filter_value_select_wrapper" style="display: none;">
+                                    <select name="filter_value[]" id="filter_value_select" class="spe-multi-select" multiple size="8">
+                                        <option value="" disabled><?php echo esc_html__('Loading...', 'smart-product-export'); ?></option>
+                                    </select>
+                                    <p class="description spe-select-hint">
+                                        <?php echo esc_html__('Hold Ctrl (Cmd on Mac) to select multiple items', 'smart-product-export'); ?>
+                                    </p>
+                                </div>
+
                                 <p class="description" id="filter_value_desc">
                                     <?php echo esc_html__('Leave empty to get all products.', 'smart-product-export'); ?>
                                 </p>
@@ -119,15 +131,15 @@ if (!defined('ABSPATH')) {
                 </li>
                 <li>
                     <strong><?php echo esc_html__('By Category:', 'smart-product-export'); ?></strong>
-                    <?php echo esc_html__('Enter the category slug (e.g., "clothing", "electronics").', 'smart-product-export'); ?>
+                    <?php echo esc_html__('Select one or more categories from the dropdown. Products in ANY selected category will be exported.', 'smart-product-export'); ?>
                 </li>
                 <li>
                     <strong><?php echo esc_html__('By Tag:', 'smart-product-export'); ?></strong>
-                    <?php echo esc_html__('Enter the product tag slug (e.g., "sale", "featured").', 'smart-product-export'); ?>
+                    <?php echo esc_html__('Select one or more tags from the dropdown. Products with ANY selected tag will be exported.', 'smart-product-export'); ?>
                 </li>
                 <li>
                     <strong><?php echo esc_html__('By Attribute:', 'smart-product-export'); ?></strong>
-                    <?php echo esc_html__('Enter in format "attribute_name:value" (e.g., "color:blue", "size:large").', 'smart-product-export'); ?>
+                    <?php echo esc_html__('Select one or more attribute values from the dropdown (e.g., "Color: Blue", "Size: Large"). Products with ANY selected attribute will be exported.', 'smart-product-export'); ?>
                 </li>
             </ul>
         </div>
